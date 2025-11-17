@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disk Scheduling Algorithm Visualizer SmartyVerse</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary-purple: #9333ea;
+            --dark-background: #111827;
+            --card-background: #1f2937;
+            --border-color: #4c1d95;
+            --text-color: #f3f4f6;
+        }
+
+        body {
+            background-color: var(--dark-background);
+            color: var(--text-color);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .custom-shadow {
+            box-shadow: 0 4px 6px -1px rgba(147, 51, 234, 0.1), 0 2px 4px -1px rgba(147, 51, 234, 0.06);
+        }
+
+        #schedulingGraph {
+            background-color: #000000;
+            border: 2px solid var(--border-color);
+            border-radius: 0.5rem;
+            max-width: 100%;
+            height: auto;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #6d28d9;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background-color: #1f2937;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="min-h-screen p-4 md:p-8">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-white">Disk Scheduling Visualizer</h1>
+            <p class="mt-2 text-purple-400 text-lg">Compare FIFO, SSTF, SCAN, C-SCAN, LOOK, and C-LOOK</p>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <div class="lg:col-span-1 sticky top-8 h-fit">
+                <div class="bg-gray-800 p-6 rounded-xl custom-shadow border border-purple-800">
+                    <h2 class="text-2xl font-semibold mb-4 text-purple-400">Inputs</h2>
+                    <form id="inputForm" class="space-y-4">
+                        
+                        <div>
+                            <label for="requestQueue" class="block text-sm font-medium text-gray-300 mb-1">Request Queue (e.g., 98, 183, 37, 122)</label>
+                            <input type="text" id="requestQueue" value="170, 16, 150, 24, 190" required class="w-full p-2 bg-gray-900 border border-purple-700 rounded-lg text-white focus:ring-purple-500 focus:border-purple-500">
+                        </div>
+
+                        <div>
+                            <label for="currentHead" class="block text-sm font-medium text-gray-300 mb-1">Current Head Position</label>
+                            <input type="number" id="currentHead" value="50" min="0" required class="w-full p-2 bg-gray-900 border border-purple-700 rounded-lg text-white focus:ring-purple-500 focus:border-purple-500">
+                        </div>
+
+                        <div>
+                            <label for="maxCylinder" class="block text-sm font-medium text-gray-300 mb-1">Max Cylinder Number (e.g., 199 for 0-199)</label>
+                            <input type="number" id="maxCylinder" value="199" min="1" required class="w-full p-2 bg-gray-900 border border-purple-700 rounded-lg text-white focus:ring-purple-500 focus:border-purple-500">
+                        </div>
+
+                        <div>
+                            <label for="algorithm" class="block text-sm font-medium text-gray-300 mb-1">Select Algorithm</label>
+                            <select id="algorithm" required class="w-full p-2 bg-gray-900 border border-purple-700 rounded-lg text-white focus:ring-purple-500 focus:border-purple-500">
+                                <option value="FIFO" selected>FIFO (First-In, First-Out)</option>
+                                <option value="SSTF">SSTF (Shortest Seek Time First)</option>
+                                <option value="SCAN">SCAN (Elevator)</option>
+                                <option value="C-SCAN">C-SCAN (Circular SCAN)</option>
+                                <option value="LOOK">LOOK</option>
+                                <option value="C-LOOK">C-LOOK (Circular LOOK)</option>
+                            </select>
+                        </div>
+                        
+                        <div id="direction-input" class="hidden">
+                            <label for="direction" class="block text-sm font-medium text-gray-300 mb-1">Initial Direction (for SCAN/LOOK types)</label>
+                            <select id="direction" class="w-full p-2 bg-gray-900 border border-purple-700 rounded-lg text-white focus:ring-purple-500 focus:border-purple-500">
+                                <option value="UP">Towards Max Cylinder (UP)</option>
+                                <option value="DOWN">Towards 0 (DOWN)</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition duration-300 ease-in-out transform hover:scale-[1.01] custom-shadow">
+                            Calculate & Visualize
+                        </button>
+                    </form>
+                    <div id="messageBox" class="mt-4 hidden p-3 rounded-lg text-sm font-medium text-yellow-100 bg-yellow-700 border border-yellow-500"></div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-8">
+                
+                <div class="bg-gray-800 p-6 rounded-xl custom-shadow border border-purple-800">
+                    <h2 class="text-3xl font-bold mb-4 text-purple-400">Results</h2>
+                    <div id="summaryOutput" class="space-y-4">
+                        <p class="text-xl">Algorithm: <span id="algoName" class="font-bold text-white">N/A</span></p>
+                        <p class="text-xl">Total Head Movement: <span id="totalMovement" class="font-extrabold text-purple-400 text-3xl">0</span> Cylinders</p>
+                        <p class="text-lg">Sequence: <span id="sequence" class="text-gray-300 font-mono break-all">Head $\rightarrow$ (Sequence)</span></p>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-6 rounded-xl custom-shadow border border-purple-800">
+                    <h2 class="text-2xl font-semibold mb-4 text-purple-400">Head Movement Graph</h2>
+                    <canvas id="schedulingGraph" width="800" height="400" class="w-full"></canvas>
+                </div>
+
+                <div class="bg-gray-800 p-6 rounded-xl custom-shadow border border-purple-800">
+                    <h2 class="text-2xl font-semibold mb-4 text-purple-400">Step-by-Step Solution</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-purple-700">
+                            <thead class="bg-gray-900">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">Step</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">Current Position</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">Next Request</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">Movement</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stepsTableBody" class="bg-gray-800 divide-y divide-purple-900">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('inputForm');
+        const algorithmSelect = document.getElementById('algorithm');
+        const directionInputDiv = document.getElementById('direction-input');
+        const messageBox = document.getElementById('messageBox');
+        const canvas = document.getElementById('schedulingGraph');
+        const ctx = canvas.getContext('2d');
+
+        function showMessage(message) {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden');
+        }
+
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+        }
+
+        function calculateResults(path) {
+            let totalMovement = 0;
+            const steps = [];
+
+            for (let i = 0; i < path.length - 1; i++) {
+                const current = path[i];
+                const next = path[i+1];
+                const movement = Math.abs(current - next);
+                totalMovement += movement;
+                
+                steps.push({
+                    step: i + 1,
+                    current: current,
+                    next: next,
+                    movement: movement
+                });
+            }
+
+            const sequenceText = path.join(' $\\rightarrow$ ');
+            return { movement: totalMovement, sequenceText, steps };
+        }
+
+        function drawArrowhead(ctx, fromX, fromY, toX, toY, arrowHeadSize) {
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - arrowHeadSize * Math.cos(angle - Math.PI / 6), toY - arrowHeadSize * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - arrowHeadSize * Math.cos(angle + Math.PI / 6), toY - arrowHeadSize * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawAxes(maxCylinder, numSteps) {
+            const width = canvas.width;
+            const height = canvas.height;
+            const padding = 50;
+            const axisColor = '#9333ea';
+            const textColor = '#f3f4f6';
+            const tickColor = '#4c1d95';
+            const fontSize = '14px';
+
+            ctx.clearRect(0, 0, width, height);
+            
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.beginPath();
+            ctx.strokeStyle = axisColor;
+            ctx.lineWidth = 1;
+            ctx.moveTo(padding, height - padding);
+            ctx.lineTo(width - padding, height - padding);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, height - padding);
+            ctx.stroke();
+
+            ctx.fillStyle = textColor;
+            ctx.font = `bold ${fontSize} Inter`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+
+            ctx.fillText("Cylinder Number", width / 2, height - padding + 15);
+
+            ctx.save();
+            ctx.translate(padding - 40, height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText("Time / Request Order", 0, 0);
+            ctx.restore();
+
+            const standardTicks = [0, 50, 100, 150];
+            const ticksToDraw = [...new Set([...standardTicks, maxCylinder])].filter(val => val >= 0 && val <= maxCylinder).sort((a, b) => a - b);
+
+            ctx.font = `${fontSize} Inter`;
+
+            ticksToDraw.forEach(val => {
+                const x = padding + (val / maxCylinder) * (width - 2 * padding);
+                
+                ctx.beginPath();
+                ctx.strokeStyle = tickColor;
+                ctx.moveTo(x, height - padding);
+                ctx.lineTo(x, height - padding - 5);
+                ctx.stroke();
+                
+                ctx.fillText(val, x, height - padding + 5);
+            });
+
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            const yStepSpacing = (height - 2 * padding) / Math.max(1, numSteps);
+
+            for (let i = 0; i <= numSteps; i++) {
+                const y = padding + i * yStepSpacing;
+                
+                ctx.beginPath();
+                ctx.strokeStyle = tickColor;
+                ctx.moveTo(padding, y);
+                ctx.lineTo(padding + 5, y);
+                ctx.stroke();
+                
+                let label = i === 0 ? "Start" : i;
+                ctx.fillText(label, padding - 8, y); 
+            }
+        }
+
+        function drawGraph(path, maxCylinder) {
+            const width = canvas.width;
+            const height = canvas.height;
+            const padding = 50;
+            const arrowHeadSize = 10;
+            const pointRadius = 5;
+            const labelOffset = 8;
+            const pointFontSize = '14px'; 
+
+            const numSteps = path.length - 1;
+            
+            drawAxes(maxCylinder, numSteps);
+
+            if (path.length < 1) return;
+
+            const mapX = (cylinder) => padding + (cylinder / maxCylinder) * (width - 2 * padding);
+            const yStepSpacing = (height - 2 * padding) / Math.max(1, numSteps);
+            const mapY = (stepIndex) => padding + stepIndex * yStepSpacing;
+
+
+            for (let i = 0; i < path.length - 1; i++) {
+                const fromX = mapX(path[i]);
+                const fromY = mapY(i);
+                const toX = mapX(path[i+1]);
+                const toY = mapY(i + 1);
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#f3f4f6';
+                ctx.lineWidth = 2;
+                ctx.moveTo(fromX, fromY);
+                ctx.lineTo(toX, toY);
+                ctx.stroke();
+
+                ctx.fillStyle = '#f3f4f6';
+                drawArrowhead(ctx, fromX, fromY, toX, toY, arrowHeadSize);
+            }
+
+            ctx.font = `bold ${pointFontSize} Inter`;
+            for (let i = 0; i < path.length; i++) {
+                const x = mapX(path[i]);
+                const y = mapY(i);
+
+                ctx.beginPath();
+                ctx.fillStyle = i === 0 ? '#10b981' : '#a78bfa';
+                ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#f3f4f6'; 
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = '#e5e7eb';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                
+                ctx.fillText(path[i], x, y - labelOffset);
+            }
+        }
+
+        function runFIFO(start, requests) {
+            return [start, ...requests];
+        }
+
+        function runSSTF(start, requests) {
+            let current = start;
+            const path = [start];
+            const remaining = [...requests];
+
+            while (remaining.length > 0) {
+                let minSeek = Infinity;
+                let nextIndex = -1;
+
+                for (let i = 0; i < remaining.length; i++) {
+                    const seek = Math.abs(current - remaining[i]);
+                    if (seek < minSeek) {
+                        minSeek = seek;
+                        nextIndex = i;
+                    }
+                }
+
+                current = remaining.splice(nextIndex, 1)[0];
+                path.push(current);
+            }
+            return path;
+        }
+
+        function runSCAN(start, requests, maxCylinder, direction) {
+            const path = [start];
+            const sortedRequests = [...requests].sort((a, b) => a - b);
+            const low = 0;
+            const high = maxCylinder;
+
+            let head = start;
+            
+            let lower = sortedRequests.filter(r => r < head);
+            let upper = sortedRequests.filter(r => r >= head);
+            
+            let firstSweep, secondSweep, firstBoundary;
+
+            if (direction === 'UP') {
+                firstSweep = upper;
+                secondSweep = lower.reverse();
+                firstBoundary = high;
+            } else {
+                firstSweep = lower.reverse();
+                secondSweep = upper;
+                firstBoundary = low;
+            }
+
+            for (const request of firstSweep) {
+                if (request === head) continue;
+                path.push(request);
+                head = request;
+            }
+            
+            if (head !== firstBoundary) {
+                path.push(firstBoundary);
+                head = firstBoundary;
+            }
+
+            for (const request of secondSweep) {
+                path.push(request);
+                head = request;
+            }
+            
+            return path;
+        }
+
+        function runCSCAN(start, requests, maxCylinder, direction) {
+            const path = [start];
+            const sortedRequests = [...requests].sort((a, b) => a - b);
+            const low = 0;
+            const high = maxCylinder;
+
+            let head = start;
+            
+            let sweepUp = sortedRequests.filter(r => r >= head);
+            let sweepDown = sortedRequests.filter(r => r < head);
+
+            if (direction === 'UP') {
+                for (const request of sweepUp) {
+                    if (request === head) continue;
+                    path.push(request);
+                    head = request;
+                }
+                
+                if (head !== high) {
+                    path.push(high);
+                    head = high;
+                }
+                
+                path.push(low);
+                head = low;
+
+                for (const request of sweepDown) {
+                    path.push(request);
+                    head = request;
+                }
+
+            } else {
+                for (let i = sweepDown.length - 1; i >= 0; i--) {
+                    const request = sweepDown[i];
+                    path.push(request);
+                    head = request;
+                }
+
+                if (head !== low) {
+                    path.push(low);
+                    head = low;
+                }
+
+                path.push(high);
+                head = high;
+
+                for (let i = sweepUp.length - 1; i >= 0; i--) {
+                    const request = sweepUp[i];
+                    path.push(request);
+                    head = request;
+                }
+            }
+            
+            return path;
+        }
+
+        function runLOOK(start, requests, direction) {
+            const path = [start];
+            const sortedRequests = [...requests].sort((a, b) => a - b);
+
+            let head = start;
+            
+            let lower = sortedRequests.filter(r => r < head);
+            let upper = sortedRequests.filter(r => r >= head);
+            
+            let firstSweep, secondSweep;
+
+            if (direction === 'UP') {
+                firstSweep = upper;
+                secondSweep = lower.reverse();
+            } else {
+                firstSweep = lower.reverse();
+                secondSweep = upper;
+            }
+
+            for (const request of firstSweep) {
+                if (request === head) continue;
+                path.push(request);
+                head = request;
+            }
+            
+            for (const request of secondSweep) {
+                path.push(request);
+                head = request;
+            }
+            
+            return path;
+        }
+
+        function runCLOOK(start, requests, direction) {
+            const path = [start];
+            const sortedRequests = [...requests].sort((a, b) => a - b);
+
+            let head = start;
+            
+            let sweepUp = sortedRequests.filter(r => r >= head);
+            let sweepDown = sortedRequests.filter(r => r < head);
+
+            if (direction === 'UP') {
+                for (const request of sweepUp) {
+                    if (request === head) continue;
+                    path.push(request);
+                    head = request;
+                }
+                
+                if (sweepDown.length > 0) {
+                    const lowestRemaining = sweepDown[0];
+                    path.push(lowestRemaining);
+                    head = lowestRemaining;
+
+                    for (let i = 1; i < sweepDown.length; i++) {
+                        path.push(sweepDown[i]);
+                        head = sweepDown[i];
+                    }
+                }
+
+            } else {
+                for (let i = sweepDown.length - 1; i >= 0; i--) {
+                    const request = sweepDown[i];
+                    path.push(request);
+                    head = request;
+                }
+
+                if (sweepUp.length > 0) {
+                    const highestRemaining = sweepUp[sweepUp.length - 1];
+                    path.push(highestRemaining);
+                    head = highestRemaining;
+
+                    for (let i = sweepUp.length - 2; i >= 0; i--) {
+                        path.push(sweepUp[i]);
+                        head = sweepUp[i];
+                    }
+                }
+            }
+            
+            return path;
+        }
+
+        function calculate() {
+            hideMessage();
+            
+            const queueInput = document.getElementById('requestQueue').value;
+            const currentHeadInput = document.getElementById('currentHead').value;
+            const maxCylinderInput = document.getElementById('maxCylinder').value;
+            const algorithm = algorithmSelect.value;
+            const direction = document.getElementById('direction').value;
+
+            const requests = queueInput.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+            const currentHead = parseInt(currentHeadInput);
+            const maxCylinder = parseInt(maxCylinderInput);
+
+            if (requests.length === 0) {
+                showMessage("The request queue cannot be empty.");
+                return;
+            }
+            if (isNaN(currentHead) || currentHead < 0) {
+                showMessage("Current Head Position must be a non-negative number.");
+                return;
+            }
+            if (isNaN(maxCylinder) || maxCylinder < 1) {
+                showMessage("Max Cylinder must be a positive number.");
+                return;
+            }
+            if (currentHead > maxCylinder) {
+                showMessage("Current Head Position cannot be greater than Max Cylinder.");
+                return;
+            }
+            if (requests.some(r => r < 0 || r > maxCylinder)) {
+                showMessage(`All requests must be between 0 and ${maxCylinder}.`);
+                return;
+            }
+
+            let path = [];
+            let fullPathName = algorithm;
+
+            switch (algorithm) {
+                case 'FIFO':
+                    path = runFIFO(currentHead, requests);
+                    fullPathName = 'FIFO (First-In, First-Out)';
+                    break;
+                case 'SSTF':
+                    path = runSSTF(currentHead, requests);
+                    fullPathName = 'SSTF (Shortest Seek Time First)';
+                    break;
+                case 'SCAN':
+                    path = runSCAN(currentHead, requests, maxCylinder, direction);
+                    fullPathName = `SCAN (Elevator) - Initial direction: ${direction}`;
+                    break;
+                case 'C-SCAN':
+                    path = runCSCAN(currentHead, requests, maxCylinder, direction);
+                    fullPathName = `C-SCAN (Circular SCAN) - Initial direction: ${direction}`;
+                    break;
+                case 'LOOK':
+                    path = runLOOK(currentHead, requests, direction);
+                    fullPathName = `LOOK - Initial direction: ${direction}`;
+                    break;
+                case 'C-LOOK':
+                    path = runCLOOK(currentHead, requests, direction);
+                    fullPathName = `C-LOOK (Circular LOOK) - Initial direction: ${direction}`;
+                    break;
+            }
+
+            const { movement, sequenceText, steps } = calculateResults(path);
+
+            document.getElementById('algoName').textContent = fullPathName;
+            document.getElementById('totalMovement').textContent = movement.toLocaleString();
+            document.getElementById('sequence').textContent = sequenceText;
+
+            const stepsTableBody = document.getElementById('stepsTableBody');
+            stepsTableBody.innerHTML = '';
+            steps.forEach(step => {
+                const row = stepsTableBody.insertRow();
+                row.className = 'hover:bg-gray-700 transition duration-150';
+                
+                row.insertCell().textContent = step.step;
+                
+                row.insertCell().textContent = step.current;
+                
+                row.insertCell().textContent = step.next;
+                
+                const movementCell = row.insertCell();
+                movementCell.innerHTML = `|${step.current} - ${step.next}| = ${step.movement}`;
+                movementCell.className = 'font-semibold text-purple-300';
+            });
+            
+            const totalRow = stepsTableBody.insertRow();
+            totalRow.className = 'bg-purple-900/50 font-bold';
+            totalRow.insertCell().textContent = 'TOTAL';
+            totalRow.insertCell().colSpan = 2;
+            totalRow.insertCell().textContent = movement.toLocaleString();
+            totalRow.cells[2].className = 'text-2xl text-purple-400';
+
+            drawGraph(path, maxCylinder);
+        }
+
+        algorithmSelect.addEventListener('change', () => {
+            const algo = algorithmSelect.value;
+            if (['SCAN', 'C-SCAN', 'LOOK', 'C-LOOK'].includes(algo)) {
+                directionInputDiv.classList.remove('hidden');
+            } else {
+                directionInputDiv.classList.add('hidden');
+            }
+            if (algo === 'FIFO' || algo === 'SSTF') {
+                directionInputDiv.classList.add('hidden');
+            }
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            calculate();
+        });
+
+        window.addEventListener('resize', () => {
+            if (canvas.parentElement) {
+                const parentWidth = canvas.parentElement.clientWidth;
+                canvas.width = parentWidth > 800 ? 800 : parentWidth;
+                canvas.height = canvas.width / 2;
+                
+                const movement = document.getElementById('totalMovement').textContent;
+                if (movement !== '0') {
+                    calculate();
+                } else {
+                    drawAxes(parseInt(document.getElementById('maxCylinder').value) || 199, 0); 
+                }
+            }
+        });
+
+        window.onload = function() {
+            if (canvas.parentElement) {
+                const parentWidth = canvas.parentElement.clientWidth;
+                canvas.width = parentWidth > 800 ? 800 : parentWidth;
+                canvas.height = canvas.width / 2;
+            }
+            
+            drawAxes(parseInt(document.getElementById('maxCylinder').value) || 199, 0); 
+            
+            calculate();
+        };
+
+    </script>
+</body>
+</html>
